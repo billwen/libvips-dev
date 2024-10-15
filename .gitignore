@@ -38,6 +38,8 @@ tmp-*
 # Backup
 *.bak
 
+.idea
+
 # Auto-generated tag files
 tags
 TAGS
