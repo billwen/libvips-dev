@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include <vips/vips.h>
 
@@ -502,6 +503,10 @@ vips_foreign_save_cgif_pick_quantiser(VipsForeignSaveCgif *cgif,
 static int
 vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 {
+	// Start measuring time
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
+
 	VipsObjectClass *class = VIPS_OBJECT_GET_CLASS(cgif);
 	int n_pels = cgif->frame_height * cgif->frame_width;
 
@@ -516,9 +521,9 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 	int n_colours;
 	VipsPel palette_rgb[256 * 3];
 
-#ifdef DEBUG_VERBOSE
+//#ifdef DEBUG_VERBOSE
 	printf("vips_foreign_save_cgif_write_frame: %d\n", cgif->page_number);
-#endif /*DEBUG_VERBOSE*/
+//#endif /*DEBUG_VERBOSE*/
 
 	/* Threshold the alpha channel.
 	 *
@@ -551,6 +556,13 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 		p += 4;
 	}
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	long seconds = end.tv_sec - begin.tv_sec;
+	long microseconds = end.tv_usec - begin.tv_usec;
+	double elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured 1: %.3f ms.\n", cgif->page_number, elapsed);
+
 	/* Set up new frame for libimagequant.
 	 */
 	image = vips__quantise_image_create_rgba(cgif->attr,
@@ -569,6 +581,13 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 		use_local = FALSE;
 	}
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured 2: %.3f ms.\n", cgif->page_number, elapsed);
+
 	lp = vips__quantise_get_palette(quantisation_result);
 	/* If there's a transparent pixel, it's always first.
 	 */
@@ -577,15 +596,36 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 	vips_foreign_save_cgif_get_rgb_palette(cgif,
 		quantisation_result, palette_rgb);
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured 3: %.3f ms.\n", cgif->page_number, elapsed);
+
 	/* Dither frame into @index.
 	 */
 	vips__quantise_set_dithering_level(quantisation_result, cgif->dither);
+
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured 3.5: %.3f ms.\n", cgif->page_number, elapsed);
+
 	if (vips__quantise_write_remapped_image(quantisation_result,
 			image, cgif->index, n_pels)) {
 		vips_error(class->nickname, "%s", _("dither failed"));
 		VIPS_FREEF(vips__quantise_image_destroy, image);
 		return -1;
 	}
+
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured 4: %.3f ms.\n", cgif->page_number, elapsed);
 
 	VIPS_FREEF(vips__quantise_image_destroy, image);
 
@@ -681,6 +721,13 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 	frame_config.pImageData = cgif->index;
 	cgif_addframe(cgif->cgif_context, &frame_config);
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_write_frame frame %d, Time measured total: %.3f ms.\n", cgif->page_number, elapsed);
+
 	return 0;
 }
 
@@ -690,13 +737,17 @@ vips_foreign_save_cgif_write_frame(VipsForeignSaveCgif *cgif)
 static int
 vips_foreign_save_cgif_sink_disc(VipsRegion *region, VipsRect *area, void *a)
 {
+	// Start measuring time
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
+
 	VipsForeignSaveCgif *cgif = (VipsForeignSaveCgif *) a;
 	int line_size = cgif->frame_width * 4;
 
-#ifdef DEBUG_VERBOSE
-	printf("vips_foreign_save_cgif_sink_disc: strip at %d, height %d\n",
-		area->top, area->height);
-#endif /*DEBUG_VERBOSE*/
+//#ifdef DEBUG_VERBOSE
+	printf("vips_foreign_save_cgif_sink_disc: strip at %d, height %d, frame width: %d, write_y: %d\n",
+		area->top, area->height, cgif->frame_width, cgif->write_y);
+//#endif /*DEBUG_VERBOSE*/
 
 	for (int y = 0; y < area->height; y++) {
 		memcpy(cgif->frame_bytes + cgif->write_y * line_size,
@@ -713,12 +764,23 @@ vips_foreign_save_cgif_sink_disc(VipsRegion *region, VipsRect *area, void *a)
 		}
 	}
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	long seconds = end.tv_sec - begin.tv_sec;
+	long microseconds = end.tv_usec - begin.tv_usec;
+	double elapsed = seconds * 1000 + microseconds*1e-3;
+	printf("vips_foreign_save_cgif_sink_disc frame %d, Time measured: %.3f ms.\n", cgif->page_number, elapsed);
+
 	return 0;
 }
 
 static int
 vips_foreign_save_cgif_build(VipsObject *object)
 {
+	// Start measuring time
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
+
 	VipsForeignSave *save = (VipsForeignSave *) object;
 	VipsForeignSaveCgif *cgif = (VipsForeignSaveCgif *) object;
 	VipsObjectClass *class = VIPS_OBJECT_GET_CLASS(cgif);
@@ -787,6 +849,9 @@ vips_foreign_save_cgif_build(VipsObject *object)
 	vips__quantise_set_quality(cgif->attr, 0, 100);
 	vips__quantise_set_speed(cgif->attr, 11 - cgif->effort);
 
+	int reuse = 0;
+	int numColors = 0;
+
 	/* Read the palette on the input if we've not been asked to
 	 * reoptimise.
 	 */
@@ -800,7 +865,19 @@ vips_foreign_save_cgif_build(VipsObject *object)
 			vips_error(class->nickname, "%s", _("gif-palette too large"));
 			return -1;
 		}
+
+		reuse = 1;
+		numColors = cgif->n_colours;
 	}
+
+	printf("Saving gif file: reuse %d, colors %d. \n", reuse, numColors);
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	long seconds = end.tv_sec - begin.tv_sec;
+	long microseconds = end.tv_usec - begin.tv_usec;
+	double elapsed = seconds * 1000 + microseconds*1e-3;
+
+	printf("Saving Gif mode Time measured 1: %.3f ms.\n", elapsed);
 
 	if (cgif->palette) {
 		/* Make a fake image from the input palette, and quantise that.
@@ -826,6 +903,14 @@ vips_foreign_save_cgif_build(VipsObject *object)
 		VIPS_FREEF(vips__quantise_image_destroy, image);
 	}
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+
+	printf("Saving Gif mode Time measured 2: %.3f ms.\n", elapsed);
+
 	/* Global mode if there's an input palette, or palette maxerror is
 	 * huge.
 	 */
@@ -840,8 +925,26 @@ vips_foreign_save_cgif_build(VipsObject *object)
 
 	VIPS_FREEF(cgif_close, cgif->cgif_context);
 
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+
+	printf("Saving Gif mode Time measured 3: %.3f ms.\n", elapsed);
+
 	if (vips_target_end(cgif->target))
 		return -1;
+
+	printf("Saving Gif mode: %d. \n", cgif->mode);
+
+	// Stop measuring time and calculate the elapsed time
+	gettimeofday(&end, 0);
+	seconds = end.tv_sec - begin.tv_sec;
+	microseconds = end.tv_usec - begin.tv_usec;
+	elapsed = seconds * 1000 + microseconds*1e-3;
+
+	printf("Saving Gif mode Time measured final: %.3f ms.\n", elapsed);
 
 	return 0;
 }
@@ -936,6 +1039,8 @@ vips_foreign_save_cgif_class_init(VipsForeignSaveCgifClass *class)
 		VIPS_ARGUMENT_OPTIONAL_INPUT | VIPS_ARGUMENT_DEPRECATED,
 		G_STRUCT_OFFSET(VipsForeignSaveCgif, reoptimise),
 		FALSE);
+
+	printf("Setup Saving gif default parameters: \n");
 }
 
 static void
@@ -1019,6 +1124,8 @@ vips_foreign_save_cgif_file_build(VipsObject *object)
 
 	if (!(gif->target = vips_target_new_to_file(file->filename)))
 		return -1;
+
+	printf("Gif Saving to: %s \n", file->filename);
 
 	return VIPS_OBJECT_CLASS(vips_foreign_save_cgif_file_parent_class)
 			->build(object);
@@ -1168,6 +1275,7 @@ vips_gifsave(VipsImage *in, const char *filename, ...)
 	result = vips_call_split("gifsave", ap, in, filename);
 	va_end(ap);
 
+	printf("Saving gif to file: %s", filename);
 	return result;
 }
 

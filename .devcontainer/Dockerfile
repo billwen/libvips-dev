@@ -36,6 +36,9 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 
 RUN git config --global user.email "gang.wen@gmail.com" && git config --global user.name "Gang Wen"
 
+# install rust
+RUN apt install rustup && rustup default stable && cargo install cargo-c
+
 RUN mkdir -p -m 755 /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg &&  \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list &&  \
@@ -50,4 +53,8 @@ RUN wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | te
 
 RUN mkdir -p /app/venv && cd /app/venv && python3 -m venv libvips && . libvips/bin/activate && pip install meson && pip install ninja
 
-RUN cd /app && wget https://github.com/libvips/libvips/releases/download/v8.15.3/vips-8.15.3.tar.xz && tar -xf vips-8.15.3.tar.xz && cd vips-8.15.3 && . /app/venv/libvips/bin/activate && meson setup _build --prefix=/usr/local --libdir=lib --buildtype=debug && ninja -C _build && ninja -C _build install && ldconfig
+RUN cd /app && wget https://github.com/libvips/libvips/releases/download/v8.15.3/vips-8.15.3.tar.xz && tar -xf vips-8.15.3.tar.xz && cd vips-8.15.3 && . /app/venv/libvips/bin/activate && meson setup _build --prefix=/usr/local --libdir=lib  --buildtype=debug && ninja -C _build && ninja -C _build install && ldconfig
+
+RUN cd /app && gh repo clone DarthSim/quantizr && cd quantizr && cargo cinstall --release
+
+# meson setup _build --prefix=/usr/local --libdir=lib -Dquantizr=enabled --reconfigure
